@@ -27,14 +27,19 @@ class Server(MessagingHandler):
         super(Server, self).__init__()
         self.url = url
         self.senders = {}
+        self.container    = None
+        self.conn         = None
+        self.broadcast_rx = None
+        self.command_rx   = None
+        self.command_addr = None
+        self.service_rx   = None
+        self.relay        = None
 
     def on_start(self, event):
         self.container = event.container
         self.conn = event.container.connect(self.url)
         self.broadcast_rx = event.container.create_receiver(self.conn, "broadcast/ON_SERVER")
         self.command_rx   = event.container.create_receiver(self.conn, None, dynamic=True)
-        self.command_addr = None
-        self.relay = None
 
     def on_connection_opened(self, event):
         if event.connection.remote_offered_capabilities and 'ANONYMOUS-RELAY' in event.connection.remote_offered_capabilities:
@@ -48,17 +53,33 @@ class Server(MessagingHandler):
     def on_message(self, event):
         if event.receiver in (self.command_rx, self.broadcast_rx):
             self.process_command(event)
+        elif event.receiver == self.service_rx:
+            pass
 
 
     def process_command(self, event):
-        print "Command received: body=%r" % event.message.body
+        body = event.message.body
+        if body.__class__ != dict:
+            return
+        opcode = body['OPCODE']
+        if opcode == 'DISCOVER':
+            self.send_message(event.message.reply_to,
+                              {'OPCODE':'DECLARE', 'ADDR':self.command_addr},
+                              event.message.correlation_id)
+        elif opcode == 'DEPLOY':
+            self.deploy_service(body)
 
-        sender = self.relay or self.senders.get(event.message.reply_to)
+    def send_message(self, to, body, cid=None):
+        sender = self.relay or self.senders.get(to)
         if not sender:
-            sender = self.container.create_sender(self.conn, event.message.reply_to)
-            self.senders[event.message.reply_to] = sender
-        sender.send(Message(address=event.message.reply_to, body={'OPCODE':'DECLARE', 'ADDR': "%s" % self.command_addr},
-                            correlation_id=event.message.correlation_id))
+            sender = self.container.create_sender(self.conn, to)
+            self.senders[to] = sender
+        sender.send(Message(address=to, body={'OPCODE':'DECLARE', 'ADDR': "%s" % self.command_addr},
+                            correlation_id=cid))
+
+    def deploy_service(self, body):
+        name = body['SVCNAME']
+        self.service_rx = self.container.create_receiver(self.conn, name)
 
 try:
     Container(Server("0.0.0.0:5672")).run()
