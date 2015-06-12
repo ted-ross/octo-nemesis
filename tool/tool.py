@@ -22,46 +22,46 @@ from proton import Message
 from proton.handlers import MessagingHandler
 from proton.reactor import Container
 
-class Server(MessagingHandler):
+class Tool(MessagingHandler):
     def __init__(self, url):
-        super(Server, self).__init__()
+        super(Tool, self).__init__()
         self.url = url
         self.senders = {}
 
     def on_start(self, event):
-        self.container = event.container
-        self.conn = event.container.connect(self.url)
-        self.broadcast_rx = event.container.create_receiver(self.conn, "broadcast/ON_SERVER")
-        self.command_rx   = event.container.create_receiver(self.conn, None, dynamic=True)
-        self.command_addr = None
-        self.relay = None
+        self.container   = event.container
+        self.conn        = event.container.connect(self.url)
+        self.discover_rx = event.container.create_receiver(self.conn, "broadcast/ON_DISCOVER")
+        self.reply_rx    = event.container.create_receiver(self.conn, None, dynamic=True)
+        self.reply_addr  = None
+        self.relay       = None
 
     def on_connection_opened(self, event):
         if event.connection.remote_offered_capabilities and 'ANONYMOUS-RELAY' in event.connection.remote_offered_capabilities:
             self.relay = self.container.create_sender(self.conn, None)
 
     def on_link_opened(self, event):
-        if event.receiver == self.command_rx:
-            self.command_addr = self.command_rx.remote_source.address
-            print "Server established on command address: %s" % self.command_addr
+        if event.receiver == self.reply_rx:
+            self.reply_addr = self.reply_rx.remote_source.address
+        elif event.sender == self.relay:
+            self.send_message("broadcast/ON_SERVER", {'OPCODE':'DISCOVER'})
 
     def on_message(self, event):
-        if event.receiver in (self.command_rx, self.broadcast_rx):
-            self.process_command(event)
+        if event.receiver in (self.reply_rx, self.discover_rx):
+            self.process_message(event)
 
+    def process_message(self, event):
+        print "Message received: body=%r" % event.message.body
 
-    def process_command(self, event):
-        print "Command received: body=%r" % event.message.body
-
-        sender = self.relay or self.senders.get(event.message.reply_to)
+    def send_message(self, to, body):
+        sender = self.relay or self.senders.get(to)
         if not sender:
-            sender = self.container.create_sender(self.conn, event.message.reply_to)
-            self.senders[event.message.reply_to] = sender
-        sender.send(Message(address=event.message.reply_to, body={'OPCODE':'DECLARE', 'ADDR': "%s" % self.command_addr},
-                            correlation_id=event.message.correlation_id))
+            sender = self.container.create_sender(self.conn, to)
+            self.senders[to] = sender
+        sender.send(Message(address=to, body=body, reply_to=self.reply_addr))
 
 try:
-    Container(Server("0.0.0.0:5672")).run()
+    Container(Tool("0.0.0.0:5672")).run()
 except KeyboardInterrupt: pass
 
 
