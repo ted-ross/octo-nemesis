@@ -44,7 +44,7 @@ class Tool(MessagingHandler):
         if event.receiver == self.reply_rx:
             self.reply_addr = self.reply_rx.remote_source.address
         elif event.sender == self.relay:
-            self.send_message("broadcast/ON_SERVER", {'OPCODE':'DISCOVER'})
+            self.send_message("broadcast/ON_AGENT", {'OPCODE':'DISCOVER'})
 
     def on_message(self, event):
         if event.receiver in (self.reply_rx, self.discover_rx):

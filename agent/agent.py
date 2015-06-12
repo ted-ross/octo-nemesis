@@ -22,9 +22,9 @@ from proton import Message
 from proton.handlers import MessagingHandler
 from proton.reactor import Container
 
-class Server(MessagingHandler):
+class Agent(MessagingHandler):
     def __init__(self, url):
-        super(Server, self).__init__()
+        super(Agent, self).__init__()
         self.url = url
         self.senders = {}
         self.container    = None
@@ -38,7 +38,7 @@ class Server(MessagingHandler):
     def on_start(self, event):
         self.container = event.container
         self.conn = event.container.connect(self.url)
-        self.broadcast_rx = event.container.create_receiver(self.conn, "broadcast/ON_SERVER")
+        self.broadcast_rx = event.container.create_receiver(self.conn, "broadcast/ON_AGENT")
         self.command_rx   = event.container.create_receiver(self.conn, None, dynamic=True)
 
     def on_connection_opened(self, event):
@@ -48,7 +48,7 @@ class Server(MessagingHandler):
     def on_link_opened(self, event):
         if event.receiver == self.command_rx:
             self.command_addr = self.command_rx.remote_source.address
-            print "Server established on command address: %s" % self.command_addr
+            print "Agent established on command address: %s" % self.command_addr
 
     def on_message(self, event):
         if event.receiver in (self.command_rx, self.broadcast_rx):
@@ -82,7 +82,7 @@ class Server(MessagingHandler):
         self.service_rx = self.container.create_receiver(self.conn, name)
 
 try:
-    Container(Server("0.0.0.0:5672")).run()
+    Container(Agent("0.0.0.0:5672")).run()
 except KeyboardInterrupt: pass
 
 
