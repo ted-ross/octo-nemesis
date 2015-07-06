@@ -23,8 +23,8 @@ import time
 from proton import Message
 from proton.handlers import MessagingHandler
 from proton.reactor import Container
-from utils import AGENT_BROADCAST_ADDRESS, STATE_FREE, STATE_CLIENT, STATE_SERVER, \
-    STATE_SERVER_CLOSING, DEPLOY_TYPE_CLIENT, DEPLOY_TYPE_SERVER, DEPLOY_TYPE_UNDEPLOY
+from utils import AGENT_BROADCAST_ADDRESS, STATE_FREE, STATE_CLIENT, STATE_SERVER, STATE_QUIESCE, \
+    STATE_SERVER_CLOSING, DEPLOY_TYPE_CLIENT, DEPLOY_TYPE_SERVER, DEPLOY_TYPE_UNDEPLOY, DEPLOY_TYPE_QUIESCE
 
 
 class Agent(MessagingHandler):
@@ -57,6 +57,7 @@ class Agent(MessagingHandler):
 
         self.period = 0
         self.total_requests_received = 0
+        self.outstanding_requests = 0
         self.sent = 0
         self.acknowledged = 0
         self.messages_to_send = 0
@@ -84,6 +85,15 @@ class Agent(MessagingHandler):
 
         return act_throughput
 
+    def clear_stats(self):
+        self.total_requests_received = 0
+        self.sent = 0
+        self.desired_throughput = 0
+        self.outstanding_requests = 0
+        self.actual_throughput = []
+        self.backlog = 0
+        self.state = STATE_FREE
+
     def get_stats(self):
         current_stats = dict() # Is creating a new dict everytime going to lead a memory leak?
         current_stats['total_requests_received'] = self.total_requests_received
@@ -94,11 +104,7 @@ class Agent(MessagingHandler):
         current_stats['service_address'] = self.service_name
         current_stats['desired_throughput'] = self.desired_throughput
 
-        backlog = 0
-        if self.receiver:
-            backlog = self.receiver.queued
-
-        current_stats['backlog'] = len(self.work_queue) + backlog
+        current_stats['backlog'] = self.backlog
 
         if self.container:
             current_stats['container_id'] = self.container._attrs['container_id']
@@ -138,18 +144,24 @@ class Agent(MessagingHandler):
             self.sender = self.container.create_sender(self.connection, self.service_name)
         elif self.state == STATE_SERVER and deploy_type == DEPLOY_TYPE_UNDEPLOY:
             # Change the state of this agent to FREE
-            #self.state = STATE_SERVER_CLOSING
-            self.state = STATE_FREE
+            self.state = STATE_SERVER_CLOSING
             # Stop issuing credit for receiver with name
             #TODO - Check examples to see how you can stop issuing credits
         elif self.state == STATE_CLIENT and deploy_type == DEPLOY_TYPE_UNDEPLOY:
-            self.state = STATE_FREE
+            self.clear_stats()
             # Close sender 'name'
-            #self.sender.close()
+            self.sender.close()
         elif self.state == STATE_SERVER_CLOSING and deploy_type == DEPLOY_TYPE_UNDEPLOY:
-            self.state == STATE_FREE
+            self.clear_stats()
             self.receiver.close()
-        # TODO - Handle DEPLOY_TYPE = "QUIESCE"
+
+    def calculate_backlog(self):
+        actual_backlog = 0
+
+        if self.receiver:
+            actual_backlog = self.receiver.queued
+
+        self.backlog = actual_backlog + len(self.work_queue)
 
     def send_message(self, to_address, body, correlation_id=None):
         sender = self.relay_sender or self.senders.get(to_address)
@@ -165,6 +177,19 @@ class Agent(MessagingHandler):
     def process_command(self, event):
         self.set_agent_state(event)
 
+    def on_disconnected(self, event):
+        pass
+
+    def on_connection_closed(self, event):
+        pass
+
+    def on_session_closed(self, event):
+        print 'Hello'
+
+    def on_link_closed(self, event):
+        if event.receiver and event.receiver == self.receiver and self.state == STATE_SERVER_CLOSING:
+            self.clear_stats()
+
     def on_accepted(self, event):
         self.acknowledged += 1
 
@@ -174,11 +199,9 @@ class Agent(MessagingHandler):
         # self.broadcast_receiver = event.container.create_receiver(self.conn, AGENT_BROADCAST_ADDRESS)
         # This receiver is mainly used is mainly used to receive client requests
         self.command_receiver = event.container.create_receiver(self.connection, None, dynamic=True)
-        #self.test_receiver = event.container.create_receiver(self.connection, "test_message")
 
     def on_connection_opened(self, event):
         if event.connection.remote_offered_capabilities and 'ANONYMOUS-RELAY' in event.connection.remote_offered_capabilities:
-            #There is only one sender ever needed
             self.relay_sender = self.container.create_sender(self.connection, None)
 
     def on_sendable(self, event):
@@ -192,17 +215,14 @@ class Agent(MessagingHandler):
                 time_between_calls = current_time - self.epoch_time_milliseconds_start
                 self.epoch_time_milliseconds_start = current_time
 
-            # print 'epoch_time_milliseconds ', epoch_time_milliseconds
             message_to_send = "Hello World"
 
-            message_count = event.sender.credit
+            message_count = self.sender.credit
 
             if self.messages_to_send < message_count:
                 message_count = self.messages_to_send
 
             time_between_calls_tuple = (time_between_calls, message_count)
-
-            print 'time_between_calls_tuple ', time_between_calls_tuple
 
             for x in range(message_count):
                 self.sent += 1
@@ -210,7 +230,7 @@ class Agent(MessagingHandler):
 
             self.messages_to_send -= message_count
 
-            if len(self.actual_throughput) > 5:
+            if len(self.actual_throughput) > 10:
                 del(self.actual_throughput[0])
             self.actual_throughput.append(time_between_calls_tuple)
         elif self.state == STATE_SERVER:
@@ -231,19 +251,22 @@ class Agent(MessagingHandler):
 
     def on_timer_task(self, event):
         if self.relay_sender and self.period == 9:
+            self.calculate_backlog()
             self.send_message(AGENT_BROADCAST_ADDRESS, self.get_stats())
             self.period = 0
         else:
             self.period += 1
 
         if self.state == STATE_CLIENT:
-            if not self.messages_to_send:
-                # self.messages_to_send = self.desired_throughput / 10
-                self.messages_to_send = self.desired_throughput
-        elif self.state == STATE_SERVER:
+            self.messages_to_send = self.desired_throughput / 10
+            self.on_sendable(event)
+        elif self.state == STATE_SERVER or self.state == STATE_SERVER_CLOSING:
             messages_to_process = self.throughput / 10
             for x in range(messages_to_process):
-                self.receiver.flow(1)
+                if self.state == STATE_SERVER:
+                    self.receiver.flow(1)
+                elif self.state == STATE_SERVER_CLOSING and self.backlog == 0:
+                    self.state = STATE_FREE
                 try:
                     if self.work_queue:
                         del(self.work_queue[x])
