@@ -52,7 +52,6 @@ class Agent(MessagingHandler):
         self.relay_sender = None
         self.sender = None
 
-        self.throughput = 0
         self.desired_throughput = 0
 
         self.period = 0
@@ -132,7 +131,7 @@ class Agent(MessagingHandler):
             self.backlog = backlog
             # Open receiver on name
             if throughput:
-                self.throughput = int(throughput)
+                self.desired_throughput = int(throughput)
             self.receiver = self.container.create_receiver(self.connection, source=name)
         elif self.state == STATE_FREE and deploy_type == DEPLOY_TYPE_CLIENT:
             # Change the state of this agent to CLIENT
@@ -163,7 +162,7 @@ class Agent(MessagingHandler):
 
         self.backlog = actual_backlog + len(self.work_queue)
 
-    def send_message(self, to_address, body, correlation_id=None):
+    def send(self, to_address, body, correlation_id=None):
         sender = self.relay_sender or self.senders.get(to_address)
 
         if not sender:
@@ -204,37 +203,40 @@ class Agent(MessagingHandler):
         if event.connection.remote_offered_capabilities and 'ANONYMOUS-RELAY' in event.connection.remote_offered_capabilities:
             self.relay_sender = self.container.create_sender(self.connection, None)
 
-    def on_sendable(self, event):
-        if self.state == STATE_CLIENT:
-            time_between_calls = 0
+    def calc_time_between_calls(self, message_count):
+        time_between_calls = 0
+        if not self.epoch_time_milliseconds_start:
+            self.epoch_time_milliseconds_start = int(time.time() * 1000)
+        else:
+            current_time = int(time.time() * 1000)
+            time_between_calls = current_time - self.epoch_time_milliseconds_start
+            self.epoch_time_milliseconds_start = current_time
 
-            if not self.epoch_time_milliseconds_start:
-                self.epoch_time_milliseconds_start = int(time.time() * 1000)
-            else:
-                current_time = int(time.time() * 1000)
-                time_between_calls = current_time - self.epoch_time_milliseconds_start
-                self.epoch_time_milliseconds_start = current_time
+        time_between_calls_tuple = (time_between_calls, message_count)
+
+        if len(self.actual_throughput) > 10:
+            del(self.actual_throughput[0])
+
+        self.actual_throughput.append(time_between_calls_tuple)
+
+    def send_messages(self):
+        if self.state == STATE_CLIENT:
 
             message_to_send = "Hello World"
-
             message_count = self.sender.credit
-
             if self.messages_to_send < message_count:
                 message_count = self.messages_to_send
 
-            time_between_calls_tuple = (time_between_calls, message_count)
+            self.calc_time_between_calls(message_count)
 
             for x in range(message_count):
                 self.sent += 1
-                self.send_message(self.service_name, message_to_send)
+                self.send(self.service_name, message_to_send)
 
             self.messages_to_send -= message_count
 
-            if len(self.actual_throughput) > 10:
-                del(self.actual_throughput[0])
-            self.actual_throughput.append(time_between_calls_tuple)
-        elif self.state == STATE_SERVER:
-            pass
+    def on_sendable(self, event):
+        self.send_messages()
 
     def on_link_opened(self, event):
         if event.receiver == self.command_receiver:
@@ -252,16 +254,18 @@ class Agent(MessagingHandler):
     def on_timer_task(self, event):
         if self.relay_sender and self.period == 9:
             self.calculate_backlog()
-            self.send_message(AGENT_BROADCAST_ADDRESS, self.get_stats())
+            self.send(AGENT_BROADCAST_ADDRESS, self.get_stats())
             self.period = 0
         else:
             self.period += 1
 
         if self.state == STATE_CLIENT:
             self.messages_to_send = self.desired_throughput / 10
-            self.on_sendable(event)
+            self.send_messages()
         elif self.state == STATE_SERVER or self.state == STATE_SERVER_CLOSING:
-            messages_to_process = self.throughput / 10
+            messages_to_process = self.desired_throughput / 10
+
+            called = False
             for x in range(messages_to_process):
                 if self.state == STATE_SERVER:
                     self.receiver.flow(1)
@@ -270,6 +274,9 @@ class Agent(MessagingHandler):
                 try:
                     if self.work_queue:
                         del(self.work_queue[x])
+                        if not called:
+                            self.calc_time_between_calls(messages_to_process)
+                            called = True
                 except:
                     pass
 

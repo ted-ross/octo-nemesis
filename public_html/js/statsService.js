@@ -30,15 +30,19 @@
 
             var command_address = server.command_address;
             var service_address = server.service_address;
+            var desiredThroughput = server.desired_throughput;
             var backlog = server.backlog;
             var total_requests_received = server.total_requests_received;
-
+            var actualThroughput = server.actual_throughput;
 
             var divContent = '<div class="serverDetails"><ul><li><label class="fixed">Service Address</label>' + service_address + '</li>';
             //<li><label class="fixed">Request Rate</label>500</li>
+            divContent = divContent + '<li><label class="fixed">Desired Throughput</label>' + desiredThroughput + '</li>   ';
+            divContent = divContent + '<li><label class="fixed">Actual Throughput</label>' + actualThroughput + '</li>   ';
             divContent = divContent + '<li><label class="fixed">Backlog</label>' + backlog +'</li><li><label class="fixed">Total Requests</label>' + total_requests_received +'</li></ul>';
             divContent = divContent + '<span class="serverActions"><button class="undeployAgent" id="'+ command_address + '" type="button">Undeploy</button>';
-            divContent = divContent + '<button id="quiesceServer"  type="button">Quiesce</button></span></div>';
+            //divContent = divContent + '<button id="quiesceServer"  type="button">Quiesce</button></span>';
+            divContent = divContent + '</div>';
             $(".allServerDetails").append(divContent);
         }
     }
@@ -60,7 +64,8 @@
             divContent = divContent + '<li><label class="fixed">Actual Throughput</label>' + actualThroughput + '</li>   ';
             divContent = divContent + '<li><label class="fixed">Messages Sent</label>' + sent + '</li></ul>';
             divContent = divContent + '<span class="serverActions"><button class="undeployAgent" id="'+ command_address + '" type="button">Undeploy</button>';
-            divContent = divContent + '<button id="quiesceClient"  type="button">Quiesce</button></span></div>';
+            //divContent = divContent + '<button id="quiesceClient"  type="button">Quiesce</button></span>';
+            divContent = divContent + '</div>';
             $(".allClientDetails").append(divContent);
         }
     }
@@ -114,7 +119,7 @@
     }
 
     /**
-     *
+     * @public
      */
     octonemesis.getAvailableAgentCommandAddress = function() {
         for (var key in stats_holder) {
