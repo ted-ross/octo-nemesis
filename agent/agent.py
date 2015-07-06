@@ -18,6 +18,8 @@
 # under the License.
 #
 
+import time
+
 from proton import Message
 from proton.handlers import MessagingHandler
 from proton.reactor import Container
@@ -66,6 +68,21 @@ class Agent(MessagingHandler):
         self.service_name = None
 
         self.work_queue = list()
+        self.actual_throughput = []
+        self.epoch_time_milliseconds_start = 0
+
+    def calculate_actual_throughput(self):
+        act_throughput = 0.0
+        if self.actual_throughput:
+            total_time = 0
+            total_messages = 0
+            for tup in self.actual_throughput:
+                total_time += tup[0]
+                total_messages += tup[1]
+            if total_messages:
+                act_throughput = (total_messages * 1000) / total_time
+
+        return act_throughput
 
     def get_stats(self):
         current_stats = dict() # Is creating a new dict everytime going to lead a memory leak?
@@ -90,7 +107,7 @@ class Agent(MessagingHandler):
             current_stats['command_address'] = self.command_address
 
         current_stats['outstanding_requests'] = self.sent - self.acknowledged
-        #current_stats['throughput'] = self.acknowledged
+        current_stats['actual_throughput'] = self.calculate_actual_throughput()
 
         return current_stats
 
@@ -165,18 +182,39 @@ class Agent(MessagingHandler):
             self.relay_sender = self.container.create_sender(self.connection, None)
 
     def on_sendable(self, event):
-        message_to_send = "Hello World"
+        if self.state == STATE_CLIENT:
+            time_between_calls = 0
 
-        message_count = event.sender.credit
+            if not self.epoch_time_milliseconds_start:
+                self.epoch_time_milliseconds_start = int(time.time() * 1000)
+            else:
+                current_time = int(time.time() * 1000)
+                time_between_calls = current_time - self.epoch_time_milliseconds_start
+                self.epoch_time_milliseconds_start = current_time
 
-        if self.messages_to_send < message_count:
-            message_count = self.messages_to_send
+            # print 'epoch_time_milliseconds ', epoch_time_milliseconds
+            message_to_send = "Hello World"
 
-        for x in range(message_count):
-            self.sent += 1
-            self.send_message(self.service_name, message_to_send)
+            message_count = event.sender.credit
 
-        self.messages_to_send -= message_count
+            if self.messages_to_send < message_count:
+                message_count = self.messages_to_send
+
+            time_between_calls_tuple = (time_between_calls, message_count)
+
+            print 'time_between_calls_tuple ', time_between_calls_tuple
+
+            for x in range(message_count):
+                self.sent += 1
+                self.send_message(self.service_name, message_to_send)
+
+            self.messages_to_send -= message_count
+
+            if len(self.actual_throughput) > 5:
+                del(self.actual_throughput[0])
+            self.actual_throughput.append(time_between_calls_tuple)
+        elif self.state == STATE_SERVER:
+            pass
 
     def on_link_opened(self, event):
         if event.receiver == self.command_receiver:
@@ -200,7 +238,8 @@ class Agent(MessagingHandler):
 
         if self.state == STATE_CLIENT:
             if not self.messages_to_send:
-                self.messages_to_send = self.desired_throughput / 10
+                # self.messages_to_send = self.desired_throughput / 10
+                self.messages_to_send = self.desired_throughput
         elif self.state == STATE_SERVER:
             messages_to_process = self.throughput / 10
             for x in range(messages_to_process):

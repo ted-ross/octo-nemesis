@@ -20,6 +20,9 @@
         console.log("Received error " + error);
     };
 
+    /**
+     * @private
+     */
     var updateServers = function() {
         $(".allServerDetails").empty();
         for (var key in servers) {
@@ -40,6 +43,9 @@
         }
     }
 
+    /**
+     * @private
+     */
     var updateClients = function() {
         $(".allClientDetails").empty();
         for (var key in clients) {
@@ -47,7 +53,7 @@
             var service_address = client.service_address;
             var desiredThroughput = client.desired_throughput;
             var command_address = client.command_address;
-            var actualThroughput=0;
+            var actualThroughput = client.actual_throughput;
             var sent = client.sent
             var divContent = '<div class="clientDetails"><ul><li><label class="fixed">Service Address</label>' + service_address + '</li>'
             divContent = divContent + '<li><label class="fixed">Desired Throughput</label>' + desiredThroughput + '</li>   ';
@@ -61,7 +67,6 @@
 
 
     octonemesis.initStatsService = function() {
-
         var address = "amqp://0.0.0.0:5673/broadcast/agent/status";
         //var address = "amqp:/broadcast/agent/status";
         messenger = new proton.Messenger();
@@ -82,10 +87,9 @@
     };
 
     /**
-     *
+     * @private
      */
     var sendMessage = function(to_address, body) {
-
         //TODO - Use Route instead of this crappy code.
         to_address = 'amqp://0.0.0.0:5673/' + to_address.substring(6);
         message = new proton.Message();
@@ -171,6 +175,9 @@
         sendMessage(to_address, undeployInfo);
     }
 
+    /**
+     * @private
+     */
     var receiveData = function() {
         while (messenger.incoming()) {
             var t = messenger.get(message, true);
@@ -217,6 +224,7 @@
             specific_stat.desired_throughput = output.desired_throughput
             specific_stat.backlog = output.backlog
             specific_stat.throughput = output.throughput
+            specific_stat.actual_throughput = output.actual_throughput
             specific_stat.outstanding_requests = output.outstanding_requests
 
             updateServers();
