@@ -30,92 +30,188 @@ class Agent(MessagingHandler):
     Our own custom message handler called Agent that implements reactive message handling semantics.
     An agent could be a client or a server
     """
+
     def __init__(self, url):
-        super(Agent, self).__init__()
+        super(Agent, self).__init__(prefetch=0)
         self.url = url
         self.senders = {}
 
         self.container = None
         self.connection = None
 
-        self.broadcast_receiver = None
-        self.command_receiver = None
-
+        # This receiver is mainly used is mainly used to receive client requests
         self.receiver = None
+
+        # Used to receive command requests. This receives commands such a DEPLOY_AS_CLIENT, DEPLOY_AS_SERVER, QUIESCE
+        self.command_receiver = None
+        self.command_address = None
+
+        # This like an abstract sender. You can supply the sender to this relay_sender and have it send messages.
+        self.relay_sender = None
         self.sender = None
 
-        self.command_addr = None
+        self.throughput = 0
+        self.desired_throughput = 0
 
-        # This like an abstract sender. You can supply the sender to this relay and have it send messages.
-        self.relay = None
-        self.period = 1.0
+        self.period = 0
         self.total_requests_received = 0
+        self.sent = 0
+        self.acknowledged = 0
+        self.messages_to_send = 0
+        self.backlog = 0
+
         # Default the state of the newly instantiated agent to FREE
         self.state = STATE_FREE
         self.address = None
+        self.service_name = None
+
+        self.work_queue = list()
 
     def get_stats(self):
-        current_state = dict() # Is creating a new dict everytime going to lead a memory leak?
-        current_state['total_requests_received'] = self.total_requests_received
-        current_state['state'] = self.state
-        current_state['outstanding_requests'] = self.receiver.queued
-        # TODO - I am hoping to get the request_rate from ...
-        current_state['request_rate'] = self.total_requests_received / total_uptime
-        return current_state
+        current_stats = dict() # Is creating a new dict everytime going to lead a memory leak?
+        current_stats['total_requests_received'] = self.total_requests_received
 
-    def change_state(self, event):
+        current_stats['state'] = self.state
+        current_stats['sent'] = self.sent
+
+        current_stats['service_address'] = self.service_name
+        current_stats['desired_throughput'] = self.desired_throughput
+
+        backlog = 0
+        if self.receiver:
+            backlog = self.receiver.queued
+
+        current_stats['backlog'] = len(self.work_queue) + backlog
+
+        if self.container:
+            current_stats['container_id'] = self.container._attrs['container_id']
+
+        if self.command_address:
+            current_stats['command_address'] = self.command_address
+
+        current_stats['outstanding_requests'] = self.sent - self.acknowledged
+        #current_stats['throughput'] = self.acknowledged
+
+        return current_stats
+
+    def set_agent_state(self, event):
         deploy_type = event.message.body.get('deploy_type')
+        name = event.message.body.get('name')
+        throughput = event.message.body.get('throughput')
+        backlog = 0
+        if event.message.body.get('backlog'):
+            backlog = event.message.body.get('backlog')
+
         if self.state == STATE_FREE and deploy_type == DEPLOY_TYPE_SERVER:
             # Change the state of this agent to SERVER
             self.state = STATE_SERVER
+            self.service_name = name
+            self.backlog = backlog
             # Open receiver on name
-            self.receiver = event.container.create_receiver(self.connection, self.address)
+            if throughput:
+                self.throughput = int(throughput)
+            self.receiver = self.container.create_receiver(self.connection, source=name)
         elif self.state == STATE_FREE and deploy_type == DEPLOY_TYPE_CLIENT:
             # Change the state of this agent to CLIENT
             self.state = STATE_CLIENT
+            self.service_name = name
+            if throughput:
+                self.desired_throughput = int(throughput)
             # Open sender to name
-            self.container.create_sender(self.connection, self.address)
+            self.sender = self.container.create_sender(self.connection, self.service_name)
         elif self.state == STATE_SERVER and deploy_type == DEPLOY_TYPE_UNDEPLOY:
             # Change the state of this agent to FREE
-            self.state = STATE_SERVER_CLOSING
+            #self.state = STATE_SERVER_CLOSING
+            self.state = STATE_FREE
             # Stop issuing credit for receiver with name
             #TODO - Check examples to see how you can stop issuing credits
         elif self.state == STATE_CLIENT and deploy_type == DEPLOY_TYPE_UNDEPLOY:
             self.state = STATE_FREE
             # Close sender 'name'
-            self.sender.close()
+            #self.sender.close()
         elif self.state == STATE_SERVER_CLOSING and deploy_type == DEPLOY_TYPE_UNDEPLOY:
             self.state == STATE_FREE
             self.receiver.close()
+        # TODO - Handle DEPLOY_TYPE = "QUIESCE"
 
-    def send_message(self, to, body, correlation_id=None):
-        sender = self.relay or self.senders.get(to)
+    def send_message(self, to_address, body, correlation_id=None):
+        sender = self.relay_sender or self.senders.get(to_address)
 
         if not sender:
-            sender = self.container.create_sender(self.connection, to)
-            self.senders[to] = sender
+            sender = self.container.create_sender(self.connection, to_address)
+            self.senders[to_address] = sender
 
-        sender.send(Message(address=to,
+        sender.send(Message(address=to_address,
                             body=body,
                             correlation_id=correlation_id))
 
     def process_command(self, event):
-        self.change_state(event)
+        self.set_agent_state(event)
+
+    def on_accepted(self, event):
+        self.acknowledged += 1
 
     def on_start(self, event):
-        self.container = event.container
         self.connection = event.container.connect(self.url)
-        #self.broadcast_receiver = event.container.create_receiver(self.conn, AGENT_BROADCAST_ADDRESS)
-        #self.command_receiver = event.container.create_receiver(self.connection, None, dynamic=True)
+        self.container = event.container
+        # self.broadcast_receiver = event.container.create_receiver(self.conn, AGENT_BROADCAST_ADDRESS)
+        # This receiver is mainly used is mainly used to receive client requests
+        self.command_receiver = event.container.create_receiver(self.connection, None, dynamic=True)
+        #self.test_receiver = event.container.create_receiver(self.connection, "test_message")
 
     def on_connection_opened(self, event):
         if event.connection.remote_offered_capabilities and 'ANONYMOUS-RELAY' in event.connection.remote_offered_capabilities:
-            self.relay = self.container.create_sender(self.connection, None)
+            #There is only one sender ever needed
+            self.relay_sender = self.container.create_sender(self.connection, None)
+
+    def on_sendable(self, event):
+        message_to_send = "Hello World"
+
+        message_count = event.sender.credit
+
+        if self.messages_to_send < message_count:
+            message_count = self.messages_to_send
+
+        for x in range(message_count):
+            self.sent += 1
+            self.send_message(self.service_name, message_to_send)
+
+        self.messages_to_send -= message_count
 
     def on_link_opened(self, event):
-        pass
-        #if event.receiver == self.command_receiver:
-        #    self.command_addr = self.command_receiver.remote_source.address
+        if event.receiver == self.command_receiver:
+            event.receiver.flow(10)
+            if event.receiver and event.receiver.remote_source:
+                self.command_address = event.receiver.remote_source.address
+        if event.receiver and event.receiver == self.receiver:
+            if self.backlog:
+                event.receiver.flow(int(self.backlog))
+
+    def on_reactor_init(self, event):
+        event.reactor.schedule(self.period, self)
+        super(Agent, self).on_reactor_init(event)
+
+    def on_timer_task(self, event):
+        if self.relay_sender and self.period == 9:
+            self.send_message(AGENT_BROADCAST_ADDRESS, self.get_stats())
+            self.period = 0
+        else:
+            self.period += 1
+
+        if self.state == STATE_CLIENT:
+            if not self.messages_to_send:
+                self.messages_to_send = self.desired_throughput / 10
+        elif self.state == STATE_SERVER:
+            messages_to_process = self.throughput / 10
+            for x in range(messages_to_process):
+                self.receiver.flow(1)
+                try:
+                    if self.work_queue:
+                        del(self.work_queue[x])
+                except:
+                    pass
+
+        event.reactor.schedule(0.1, self)
 
     def on_message(self, event):
         """
@@ -123,30 +219,20 @@ class Agent(MessagingHandler):
         :param event:
         :return:
         """
-        # Increment the total_requests_received by 1, this will include duplicate requests.
-        self.total_requests_received += 1
-
         # We will only process if the receiver is present in our list of expected receivers.
-        if event.receiver in (self.command_receiver, self.broadcast_receiver):
-            self.process_command(event)
-        else:
-            pass
-
-    def on_timer_task(self, event):
-        # self.period is defaulted to 1 second. This timer will broadcast a message every one second.
-        self.send_message(AGENT_BROADCAST_ADDRESS, self.get_stats())
-        self.container.schedule(self.period, self)
-
-    #def on_timer(self, event):
-    #    self.period is defaulted to 1 second. This timer will broadcast its stats every one second.
-    #    self.send_message(AGENT_BROADCAST_ADDRESS, self.get_stats())
-    #    self.container.schedule(self.period, self)
+        if event.receiver == self.command_receiver:
+            self.set_agent_state(event)
+            event.receiver.flow(1)
+        elif event.receiver == self.receiver:
+            # Increment the total_requests_received by 1 and add simply add the message to out local work_queue
+            self.total_requests_received += 1
+            self.work_queue.append(event.message.body)
 
 try:
     agent = Agent("0.0.0.0:5672")
     container = Container(agent)
     container.run()
-    #Container(Agent("0.0.0.0:5672")).run()
+    # Container(Agent("0.0.0.0:5672")).run()
 except KeyboardInterrupt:
     container.stop()
 
