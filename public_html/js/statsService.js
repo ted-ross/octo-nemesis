@@ -59,6 +59,7 @@
         }
     }
 
+
     octonemesis.initStatsService = function() {
 
         var address = "amqp://0.0.0.0:5673/broadcast/agent/status";
@@ -80,7 +81,9 @@
         messenger.subscribe(address);
     };
 
-
+    /**
+     *
+     */
     var sendMessage = function(to_address, body) {
 
         //TODO - Use Route instead of this crappy code.
@@ -106,6 +109,9 @@
         return servers;
     }
 
+    /**
+     *
+     */
     octonemesis.getAvailableAgentCommandAddress = function() {
         for (var key in stats_holder) {
             var specific_stat = stats_holder[key];
@@ -117,6 +123,10 @@
         return null;
     }
 
+    /**
+     * Returns the number of available agents that can be deployed. Agents that are in STATE_FREE are considered
+     * free and deployable.
+     */
     var getAvailableAgentCount = function() {
         var availableAgentCount = 0;
         for (var key in stats_holder) {
@@ -129,6 +139,15 @@
         return availableAgentCount;
     }
 
+    /**
+     * Deploys an agent. An agent can be deployed as a client or a server.
+     * @param {string} to_address - The address of listening server. This is usually the address of the receiver that was created with dynamic=True
+     * @param {string} name - The name of the server.
+     * @param {string} throughput - The desired throughput.
+     * @param {string} backlog - The allowed backlog.
+     * @param {string} type - The type can be one of "CLIENT" or "SERVER".
+     * @public
+     */
     octonemesis.deploy = function(to_address, name, throughput, backlog, type) {
         var deployInfo = {};
         deployInfo.name = name;
@@ -152,14 +171,6 @@
         sendMessage(to_address, undeployInfo);
     }
 
-    var changeState = function() {
-
-    }
-
-    var sendData = function() {
-
-    }
-
     var receiveData = function() {
         while (messenger.incoming()) {
             var t = messenger.get(message, true);
@@ -173,29 +184,9 @@
 
             if(specific_stat == null) {
                 specific_stat = {};
-                specific_stat.total_requests_received = output.total_requests_received
-                specific_stat.state = output.state
-                specific_stat.container_id = output.container_id
-                specific_stat.command_address = output.command_address
-                specific_stat.outstanding_requests = output.outstanding_requests
-                specific_stat.service_address = output.service_address
-                specific_stat.sent = output.sent
-                specific_stat.desired_throughput = output.desired_throughput
-                specific_stat.backlog = output.backlog
-                specific_stat.throughput = output.throughput
                 stats_holder[output.container_id] = specific_stat;
             }
             else {
-                specific_stat.total_requests_received = output.total_requests_received
-                specific_stat.state = output.state
-                specific_stat.container_id = output.container_id
-                specific_stat.command_address = output.command_address
-                specific_stat.service_address = output.service_address
-                specific_stat.desired_throughput = output.desired_throughput
-                specific_stat.backlog = output.backlog
-                specific_stat.sent = output.sent
-                specific_stat.throughput = output.throughput
-                specific_stat.outstanding_requests = output.outstanding_requests
                 var containerId = specific_stat.container_id;
 
                 if(specific_stat.state == STATE_SERVER) {
@@ -215,6 +206,18 @@
                     delete servers[containerId];
                 }
             }
+
+            specific_stat.total_requests_received = output.total_requests_received
+            specific_stat.state = output.state
+            specific_stat.container_id = output.container_id
+            specific_stat.command_address = output.command_address
+            specific_stat.outstanding_requests = output.outstanding_requests
+            specific_stat.service_address = output.service_address
+            specific_stat.sent = output.sent
+            specific_stat.desired_throughput = output.desired_throughput
+            specific_stat.backlog = output.backlog
+            specific_stat.throughput = output.throughput
+            specific_stat.outstanding_requests = output.outstanding_requests
 
             updateServers();
             updateClients();
@@ -236,4 +239,5 @@
 
 }( window.octonemesis = window.octonemesis || {}, jQuery ));
 
+//Kick off the initStatsService. This will start reading from the broadcast/agent and start displaying statistics.
 octonemesis.initStatsService();
