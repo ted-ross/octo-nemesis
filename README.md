@@ -15,7 +15,7 @@ The purpose of this demo is to use Microservices to illustrate the features of t
   * In the `/etc/httpd/conf.d` folder, create a new file called `www.octonemesis.com.conf` and add the following contents into the file.
   
    ```xml
-   <VirtualHost *:80>
+        <VirtualHost *:80>
             <Directory />
                 Options Indexes FollowSymLinks Includes ExecCGI
                 AllowOverride None
