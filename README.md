@@ -14,7 +14,8 @@ The purpose of this demo is to use Microservices to illustrate the features of t
   * To install Apache on Fedora, please follow [these](https://fedoraproject.org/wiki/Apache_HTTP_Server) instructions
   * In the `/etc/httpd/conf.d` folder, create a new file called `www.octonemesis.com.conf` and add the following contents into the file.
   
-   ```<VirtualHost *:80>
+   ```xml
+   <VirtualHost *:80>
             <Directory />
                 Options Indexes FollowSymLinks Includes ExecCGI
                 AllowOverride None
