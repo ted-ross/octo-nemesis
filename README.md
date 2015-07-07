@@ -7,9 +7,9 @@ The purpose of this demo is to use Microservices to illustrate the features of t
 
 ##Installation Instructions
 
-* Download the code into your **octo-project-install-folder** - Use the command **git clone https://github.com/ted-ross/octo-nemesis.git** to download the code.
-* Install Node js using **sudo yum install nodejs** - 
-* Start the Websocket to TCP socket proxy - From your **proton-install-folder/examples/javascript/messenger** run **node proxy.js**. proxy.js is a simple node.js command line application that uses the ws2tcp.js library to proxy from a WebSocket to a TCP Socket or vice versa
+* Download the code into your `octo-project-install-folder` - Use the command `git clone https://github.com/ted-ross/octo-nemesis.git` to download the code.
+* Install Node js using `sudo yum install nodejs` 
+* Start the Websocket to TCP socket proxy - From your `proton-install-folder/examples/javascript/messenger` run `node proxy.js`. `proxy.js` is a simple `node.js` command line application that uses the ws2tcp.js library to proxy from a WebSocket to a TCP Socket or vice versa
 * Install and setup Apache Web Server 
   * To install Apache on Fedora, please follow [these](https://fedoraproject.org/wiki/Apache_HTTP_Server) instructions
   * In the `/etc/httpd/conf.d` folder, create a new file called `www.octonemesis.com.conf` and add the following contents into the file.
@@ -32,4 +32,4 @@ The purpose of this demo is to use Microservices to illustrate the features of t
 * From the `octo-project-install-folder` start one or more agents using - `python agent/agent.py`
 * Launch a browser and go to www.octonemesis.com
 * If you are not able to launch the website, look in the Apache error logs at `/etc/httpd/logs/error_log`
-* Turn off SELinux if you see any access issues in the Apache error log - run **setenforce 0** as root
+* Turn off SELinux if you see any access issues in the Apache error log - run `setenforce 0` as root
