@@ -20,7 +20,7 @@
 
 import time
 
-from proton import Message
+from proton import Message, Delivery
 from proton.handlers import MessagingHandler
 from proton.reactor import Container
 from utils import AGENT_BROADCAST_ADDRESS, STATE_FREE, STATE_CLIENT, STATE_SERVER, STATE_QUIESCE, \
@@ -34,7 +34,7 @@ class Agent(MessagingHandler):
     """
 
     def __init__(self, url):
-        super(Agent, self).__init__(prefetch=0)
+        super(Agent, self).__init__(prefetch=0, auto_accept=False)
         self.url = url
         self.senders = {}
 
@@ -61,6 +61,7 @@ class Agent(MessagingHandler):
         self.acknowledged = 0
         self.messages_to_send = 0
         self.backlog = 0
+        self.allowed_backlog = 0
 
         # Default the state of the newly instantiated agent to FREE
         self.state = STATE_FREE
@@ -79,7 +80,7 @@ class Agent(MessagingHandler):
             for tup in self.actual_throughput:
                 total_time += tup[0]
                 total_messages += tup[1]
-            if total_messages:
+            if total_messages and total_time:
                 act_throughput = (total_messages * 1000) / total_time
 
         return act_throughput
@@ -128,7 +129,7 @@ class Agent(MessagingHandler):
             # Change the state of this agent to SERVER
             self.state = STATE_SERVER
             self.service_name = name
-            self.backlog = backlog
+            self.allowed_backlog = backlog
             # Open receiver on name
             if throughput:
                 self.desired_throughput = int(throughput)
@@ -244,8 +245,8 @@ class Agent(MessagingHandler):
             if event.receiver and event.receiver.remote_source:
                 self.command_address = event.receiver.remote_source.address
         if event.receiver and event.receiver == self.receiver:
-            if self.backlog:
-                event.receiver.flow(int(self.backlog))
+            if self.allowed_backlog:
+                event.receiver.flow(int(self.allowed_backlog))
 
     def on_reactor_init(self, event):
         event.reactor.schedule(self.period, self)
@@ -267,13 +268,23 @@ class Agent(MessagingHandler):
 
             called = False
             for x in range(messages_to_process):
-                if self.state == STATE_SERVER:
-                    self.receiver.flow(1)
-                elif self.state == STATE_SERVER_CLOSING and self.backlog == 0:
+
+                if self.state == STATE_SERVER_CLOSING and self.backlog == 0:
                     self.state = STATE_FREE
+                    self.clear_stats()
+
                 try:
                     if self.work_queue:
+                        delivery = self.work_queue[x]
+
+                        delivery.update(Delivery.ACCEPTED)
+                        delivery.settle()
+
                         del(self.work_queue[x])
+
+                        if self.state == STATE_SERVER:
+                            self.receiver.flow(1)
+
                         if not called:
                             self.calc_time_between_calls(messages_to_process)
                             called = True
@@ -283,11 +294,6 @@ class Agent(MessagingHandler):
         event.reactor.schedule(0.1, self)
 
     def on_message(self, event):
-        """
-        Invoked when messages are received.
-        :param event:
-        :return:
-        """
         # We will only process if the receiver is present in our list of expected receivers.
         if event.receiver == self.command_receiver:
             self.set_agent_state(event)
@@ -295,7 +301,7 @@ class Agent(MessagingHandler):
         elif event.receiver == self.receiver:
             # Increment the total_requests_received by 1 and add simply add the message to out local work_queue
             self.total_requests_received += 1
-            self.work_queue.append(event.message.body)
+            self.work_queue.append(event.delivery)
 
 try:
     agent = Agent("0.0.0.0:5672")
