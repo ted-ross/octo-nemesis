@@ -29,7 +29,7 @@ The purpose of this demo is to use Microservices to illustrate the features of t
   * Add the following line to your /etc/hosts file - `127.0.0.1		www.octonemesis.com`
   * Restart Apache - `sudo /sbin/service httpd restart` (use `httpd -t` command to check for any errors in the httpd.conf file)
 * Start the dispatch router - `qdrouterd`
-* Start one or more agents using - `python agent/agent.py`
+* From the `octo-project-install-folder` start one or more agents using - `python agent/agent.py`
 * Launch a browser and go to www.octonemesis.com
 * If you are not able to launch the website, look in the Apache error logs at `/etc/httpd/logs/error_log`
 * Turn off SELinux if you see any access issues in the Apache error log - run **setenforce 0** as root
