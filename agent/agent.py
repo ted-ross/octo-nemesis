@@ -269,31 +269,28 @@ class Agent(MessagingHandler):
         elif self.state == STATE_SERVER or self.state == STATE_SERVER_CLOSING:
             messages_to_process = self.desired_throughput / 10
 
-            called = False
+            if self.state == STATE_SERVER_CLOSING and self.backlog == 0:
+                self.state = STATE_FREE
+                self.clear_stats()
+
+            process_count = 0
             for x in range(messages_to_process):
-
-                if self.state == STATE_SERVER_CLOSING and self.backlog == 0:
-                    self.state = STATE_FREE
-                    self.clear_stats()
-
                 try:
                     if self.work_queue:
-                        delivery = self.work_queue[x]
+                        process_count += 1
+                        delivery = self.work_queue[0]
 
                         delivery.update(Delivery.ACCEPTED)
                         delivery.settle()
 
-                        del(self.work_queue[x])
+                        del(self.work_queue[0])
 
                         if self.state == STATE_SERVER:
                             self.receiver.flow(1)
-
-                        if not called:
-                            self.calc_time_between_calls(messages_to_process)
-                            called = True
                 except:
                     pass
 
+            self.calc_time_between_calls(process_count)
         event.reactor.schedule(0.1, self)
 
     def on_message(self, event):
