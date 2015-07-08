@@ -51,13 +51,13 @@
                     <div class="allClientDetails">
                         <div class="clientDetails" ng-repeat="client in clients">
                             <ul>
-                                    <li><label class="fixed">Service Address</label> {{ client.service_address }} </li>
+                                <li><label class="fixed">Service Address</label> {{ client.service_address }} </li>
                                 <li><label class="fixed">Desired Throughput</label> {{ client.desired_throughput }}  </li>
                                 <li><label class="fixed">Actual Throughput</label> {{ client.actual_throughput }} </li>
                                 <li><label class="fixed">Messages Sent</label> {{ client.sent }} </li>
                             </ul>
-                            <span class="serverActions">
-                                <button class="undeployAgent" id="some_command_address" type="button">Undeploy</button>
+                            <span class="clientActions">
+                                <button class="undeployAgent" id="some_command_address" ng-click="undeploy()" type="button">Undeploy</button>
                             </span>
                         </div>
                     </div>
@@ -66,17 +66,14 @@
             </div>
         </div>
 
-        <div class="chart">
-        </div>
-
         <script type="text/ng-template" id="serverContent.html">
             <div class="modal-header">
                 <h3 class="modal-title">Deploy Server</h3>
             </div>
             <div class="modal-body">
-                <label class="fixed">Service Address: </label><input type="text" name="serviceAddress" ng-model="serverDeploy.serviceAddress" required><br/>
-                <label class="fixed">Desired Throughput: </label><input type="number" name="serverDesiredThroughput" ng-model="serverDeploy.desiredThroughput" min="0" required><br/>
-                <label class="fixed">Backlog: </label><input type="number" name="serverBacklog" ng-model="serverDeploy.backlog" min="0" required><br/>
+                <label class="fixed">Service Address: </label><input type="text" name="serviceAddress" ng-model="deployDetails.serviceAddress" required><br/>
+                <label class="fixed">Desired Throughput: </label><input type="number" name="serverDesiredThroughput" ng-model="deployDetails.desiredThroughput" min="0" required><br/>
+                <label class="fixed">Backlog: </label><input type="number" name="serverBacklog" ng-model="deployDetails.backlog" min="0" required><br/>
             </div>
             <div class="modal-footer">
                 <button class="btn btn-primary" ng-click="ok()">OK</button>
@@ -89,8 +86,8 @@
                 <h3 class="modal-title">Deploy Client</h3>
             </div>
             <div class="modal-body">
-                <label class="fixed">Service Address: </label><input type="text" name="clientServiceAddress" ng-model="clientDeploy.serviceAddress" required><br/>
-                <label class="fixed">Desired Throughput: </label><input type="number" name="clientDesiredThroughput" ng-model="clientDeploy.desiredThroughput" min="0" required><br/>
+                <label class="fixed">Service Address: </label><input type="text" name="clientServiceAddress" ng-model="deployDetails.serviceAddress" required><br/>
+                <label class="fixed">Desired Throughput: </label><input type="number" name="clientDesiredThroughput" ng-model="deployDetails.desiredThroughput" min="0" required><br/>
             </div>
             <div class="modal-footer">
                 <button class="btn btn-primary" ng-click="ok()">OK</button>

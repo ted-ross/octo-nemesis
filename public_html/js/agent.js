@@ -1,21 +1,21 @@
 var octoApp = angular.module('octoApp', ['ui.bootstrap']);
 
-octoApp.controller('ModalInstanceCtrl', function ($scope, $modalInstance) {
+octoApp.controller('ModalInstanceCtrl', function ($scope, $modalInstance, commandAddress, deploy, type) {
 
-    $scope.clientDeploy = {
-        serviceAddress: 'logAgent',
-        desiredThroughput: 100
-    };
+    $scope.commandAddress = commandAddress;
+    $scope.deploy = deploy;
+    $scope.type = type;
 
-    $scope.serverDeploy = {
+    $scope.deployDetails = {
         serviceAddress: 'logAgent',
         desiredThroughput: 100,
         backlog: 10
     };
 
     $scope.ok = function () {
-        $scope.deploy($scope.getAvailableAgentCommandAddress(), $scope.serverDeploy.serviceAddress, $scope.serverDeploy.desiredThroughput, $scope.serverDeploy.backlog, "SERVER");
-        $modalInstance.close($scope.selected.item);
+
+        $scope.deploy($scope.commandAddress, $scope.deployDetails.serviceAddress, $scope.deployDetails.desiredThroughput, $scope.deployDetails.backlog, $scope.type);
+        $modalInstance.close();
     };
 
     $scope.cancel = function () {
@@ -23,7 +23,7 @@ octoApp.controller('ModalInstanceCtrl', function ($scope, $modalInstance) {
     };
 });
 
-octoApp.controller('AgentController', function ($scope, $modal, $log) {
+octoApp.controller('AgentController', function ($scope, $modal) {
     var messenger;
     var message;
     var STATE_FREE = "FREE";
@@ -51,8 +51,14 @@ octoApp.controller('AgentController', function ($scope, $modal, $log) {
           controller: 'ModalInstanceCtrl',
           size: size,
           resolve: {
-            items: function () {
-              return $scope.items;
+            commandAddress: function () {
+               return $scope.getAvailableAgentCommandAddress();
+            },
+            type: function () {
+               return "SERVER";
+            },
+            deploy: function () {
+               return $scope.deploy;
             }
           }
         });
@@ -65,8 +71,14 @@ octoApp.controller('AgentController', function ($scope, $modal, $log) {
           controller: 'ModalInstanceCtrl',
           size: size,
           resolve: {
-            items: function () {
-              return $scope.items;
+            commandAddress: function () {
+               return $scope.getAvailableAgentCommandAddress();
+            },
+            type: function () {
+               return "CLIENT";
+            },
+            deploy: function () {
+               return $scope.deploy;
             }
           }
         });
