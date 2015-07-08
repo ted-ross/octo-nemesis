@@ -222,7 +222,7 @@ octoApp.controller('AgentController', function ($scope, $modal) {
             specific_stat.desired_throughput = output.desired_throughput
             specific_stat.backlog = output.backlog
             specific_stat.throughput = output.throughput
-            specific_stat.actual_throughput = output.actual_throughput
+            specific_stat.actual_throughput = parseFloat(output.actual_throughput).toFixed(2);
             specific_stat.outstanding_requests = output.outstanding_requests
 
             $scope.availableAgents = getAvailableAgentCount();

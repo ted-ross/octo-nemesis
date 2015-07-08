@@ -81,7 +81,7 @@ class Agent(MessagingHandler):
                 total_time += tup[0]
                 total_messages += tup[1]
             if total_messages and total_time:
-                act_throughput = (total_messages * 1000) / total_time
+                act_throughput = (total_messages * 1000.0) / (total_time * 1.0)
 
         return act_throughput
 
