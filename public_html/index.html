@@ -1,25 +1,25 @@
 <!DOCTYPE html>
 
-<html>
+<html ng-app="octoApp">
 
     <head>
         <link rel="stylesheet" type="text/css" href="css/main.css">
+        <link href="//netdna.bootstrapcdn.com/bootstrap/3.1.1/css/bootstrap.min.css" rel="stylesheet">
         <script type="text/javascript">PROTON_TOTAL_MEMORY = 50000000;</script>
         <script type="text/javascript" src="js/lib/d3.v2.min.js"></script>
         <script type="text/javascript" src="js/lib/proton-messenger.js"></script>
-        <script type="text/javascript" src="js/lib/jquery-2.1.4.min.js"></script>
-        <script type="text/javascript" src="js/lib/jquery.simplemodal.1.4.4.min.js"></script>
-        <script type="text/javascript" src="js/statsService.js"></script>
-        <script type="text/javascript" src="js/events.js"></script>
+        <script type="text/javascript" src="js/lib/angular.min.js"></script>
+        <script type="text/javascript" src="js/lib/ui-bootstrap-tpls-0.13.0.min.js"></script>
+        <script type="text/javascript" src="js/agent.js"></script>
     </head>
 
-    <body>
+    <body ng-controller="AgentController">
         <div id="container">
             <div id="header">
-                Available Agents : <span id="availableAgents" class="paddingRight700">0</span>
-                 <span class="deployButtons hidden">
-                    <button id="deployService" type="button">Deploy Service</button>
-                    <button id="deployClient"  type="button">Deploy Client</button>
+                Available Agents : <span class="paddingRight700">{{ availableAgents }}</span>
+                 <span ng-show="showDeployButtons()">
+                    <button ng-click="serverOpen()" id="deployService" type="button">Deploy Service</button>
+                    <button ng-click="clientOpen()" id="deployClient"  type="button">Deploy Client</button>
                  </span>
             </div>
 
@@ -29,7 +29,18 @@
                         <h4>Servers</h4>
                     </div>
                     <div class="allServerDetails">
-
+                        <div ng-repeat="server in servers" class="serverDetails">
+                            <ul>
+                                <li><label class="fixed">Service Address</label> {{ server.service_address }} </li>
+                                <li><label class="fixed">Desired Throughput</label> {{ server.desired_throughput }} </li>
+                                <li><label class="fixed">Actual Throughput</label> {{ server.actual_throughput }} </li>
+                                <li><label class="fixed">Backlog</label> {{ server.backlog }} </li>
+                                <li><label class="fixed">Total Requests</label> {{ server.total_requests_received }}</li>
+                            </ul>
+                            <span class="serverActions">
+                                <button class="undeployAgent" id="command_address" type="button">Undeploy</button>
+                            </span>
+                        </div>
                     </div>
                 </div>
 
@@ -38,7 +49,17 @@
                         <h4>Clients</h4>
                     </div>
                     <div class="allClientDetails">
-
+                        <div class="clientDetails" ng-repeat="client in clients">
+                            <ul>
+                                    <li><label class="fixed">Service Address</label> {{ client.service_address }} </li>
+                                <li><label class="fixed">Desired Throughput</label> {{ client.desired_throughput }}  </li>
+                                <li><label class="fixed">Actual Throughput</label> {{ client.actual_throughput }} </li>
+                                <li><label class="fixed">Messages Sent</label> {{ client.sent }} </li>
+                            </ul>
+                            <span class="serverActions">
+                                <button class="undeployAgent" id="some_command_address" type="button">Undeploy</button>
+                            </span>
+                        </div>
                     </div>
                 </div>
 
@@ -48,22 +69,34 @@
         <div class="chart">
         </div>
 
-        <div id="clientDeploy">
-            <h3>Enter Client Details</h3>
-            <label class="fixed">Service Address: </label><input type="text" name="clientName" id="clientName"><br>
-            <label class="fixed">Desired Throughput: </label><input type="text" name="desiredThroughput" id="desiredThroughput"><br>
-            <a id="submitClientDeploy" class="button steel" href="#">Deploy</a>
-            <a class="close button steel" href="#">Cancel</a>
-        </div>
+        <script type="text/ng-template" id="serverContent.html">
+            <div class="modal-header">
+                <h3 class="modal-title">Deploy Server</h3>
+            </div>
+            <div class="modal-body">
+                <label class="fixed">Service Address: </label><input type="text" name="serviceAddress" ng-model="serverDeploy.serviceAddress" required><br/>
+                <label class="fixed">Desired Throughput: </label><input type="number" name="serverDesiredThroughput" ng-model="serverDeploy.desiredThroughput" min="0" required><br/>
+                <label class="fixed">Backlog: </label><input type="number" name="serverBacklog" ng-model="serverDeploy.backlog" min="0" required><br/>
+            </div>
+            <div class="modal-footer">
+                <button class="btn btn-primary" ng-click="ok()">OK</button>
+                <button class="btn btn-warning" ng-click="cancel()">Cancel</button>
+            </div>
+        </script>
 
-        <div id="serverDeploy">
-            <h3>Enter Server Details</h3>
-            <label class="fixed">Service Address: </label><input type="text" name="serverName" id="serverName"><br>
-            <label class="fixed">Throughput: </label><input type="text" name="throughput" id="throughput"><br>
-            <label class="fixed">Backlog: </label><input type="text" name="backlog" id="backlog"><br>
-            <a id="submitServerDeploy" class="button steel" href="#">Deploy</a>
-            <a class="close button steel" href="#">Cancel</a>
-        </div>
+        <script type="text/ng-template" id="clientContent.html">
+            <div class="modal-header">
+                <h3 class="modal-title">Deploy Client</h3>
+            </div>
+            <div class="modal-body">
+                <label class="fixed">Service Address: </label><input type="text" name="clientServiceAddress" ng-model="clientDeploy.serviceAddress" required><br/>
+                <label class="fixed">Desired Throughput: </label><input type="number" name="clientDesiredThroughput" ng-model="clientDeploy.desiredThroughput" min="0" required><br/>
+            </div>
+            <div class="modal-footer">
+                <button class="btn btn-primary" ng-click="ok()">OK</button>
+                <button class="btn btn-warning" ng-click="cancel()">Cancel</button>
+            </div>
+        </script>
 
     </body>
 

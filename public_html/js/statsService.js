@@ -16,6 +16,8 @@
     var servers = new Object();
     var clients = new Object();
 
+    octonemesis.availableAgentCount = 0;
+
     var errorHandler = function(error) {
         console.log("Received error " + error);
     };
@@ -136,7 +138,7 @@
      * Returns the number of available agents that can be deployed. Agents that are in STATE_FREE are considered
      * free and deployable.
      */
-    var getAvailableAgentCount = function() {
+    octonemesis.getAvailableAgentCount = function() {
         var availableAgentCount = 0;
         for (var key in stats_holder) {
             var specific_stat = stats_holder[key];
@@ -235,7 +237,7 @@
             updateServers();
             updateClients();
 
-            var availableAgentCount = getAvailableAgentCount();
+            octonemesis.availableAgentCount = getAvailableAgentCount();
 
             if(availableAgentCount > 0) {
                 $(".deployButtons").show();
@@ -244,7 +246,7 @@
                 $(".deployButtons").hide();
             }
 
-            $("#availableAgents").html(getAvailableAgentCount());
+            //$("#availableAgents").html(octonemesis.availableAgentCount);
 
             messenger.accept(t);
         }
@@ -253,4 +255,4 @@
 }( window.octonemesis = window.octonemesis || {}, jQuery ));
 
 //Kick off the initStatsService. This will start reading from the broadcast/agent and start displaying statistics.
-octonemesis.initStatsService();
+//octonemesis.initStatsService();
