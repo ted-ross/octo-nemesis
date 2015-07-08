@@ -273,7 +273,6 @@ class Agent(MessagingHandler):
                 self.state = STATE_FREE
                 self.clear_stats()
 
-            called = False
             process_count = 0
             for x in range(messages_to_process):
                 try:
@@ -291,9 +290,7 @@ class Agent(MessagingHandler):
                 except:
                     pass
 
-            if not called:
-                self.calc_time_between_calls(process_count)
-                called = True
+            self.calc_time_between_calls(process_count)
         event.reactor.schedule(0.1, self)
 
     def on_message(self, event):
