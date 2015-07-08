@@ -151,9 +151,6 @@ class Agent(MessagingHandler):
             self.clear_stats()
             # Close sender 'name'
             self.sender.close()
-        elif self.state == STATE_SERVER_CLOSING and deploy_type == DEPLOY_TYPE_UNDEPLOY:
-            self.clear_stats()
-            self.receiver.close()
 
     def calculate_backlog(self):
         actual_backlog = 0
@@ -272,6 +269,7 @@ class Agent(MessagingHandler):
             if self.state == STATE_SERVER_CLOSING and self.backlog == 0:
                 self.state = STATE_FREE
                 self.clear_stats()
+                self.receiver.close()
 
             process_count = 0
             for x in range(messages_to_process):
@@ -299,7 +297,7 @@ class Agent(MessagingHandler):
             self.set_agent_state(event)
             event.receiver.flow(1)
         elif event.receiver == self.receiver:
-            # Increment the total_requests_received by 1 and add simply add the message to out local work_queue
+            # Increment the total_requests_received by 1 and add simply add the message to our local work_queue
             self.total_requests_received += 1
             self.work_queue.append(event.delivery)
 
