@@ -1,3 +1,5 @@
+#!/bin/sh
+
 ##
 ## Licensed to the Apache Software Foundation (ASF) under one
 ## or more contributor license agreements.  See the NOTICE file
@@ -18,19 +20,18 @@
 ##
 
 ##
-## Build command: (from project root)
-##   docker build -t octo-nemesis-router -f dockerfiles/octo-nemesis-router/Dockerfile .
+## Start the web server
 ##
+httpd
 
-FROM fedora:21
-MAINTAINER Ted Ross <tross@apache.org>
-RUN yum -y update
-RUN yum -y install net-tools nc qpid-dispatch-router httpd nodejs npm make
-RUN npm install ws
-ADD public_html /var/www/html
-ADD dockerfiles/octo-nemesis-router/proxy.js /var/www/html/js/lib/proxy.js
-ADD dockerfiles/octo-nemesis-router/ws2tcp.js /var/www/html/js/lib/ws2tcp.js
-ADD dockerfiles/octo-nemesis-router/qdrouterd.conf /etc/qpid-dispatch/qdrouterd.conf
-ADD dockerfiles/octo-nemesis-router/start.sh /start.sh
-CMD /start.sh
+##
+## Start the router
+##
+qdrouterd --daemon
+
+##
+## Start the websocket proxy
+##
+node /var/www/html//js/lib/proxy.js
+
 
