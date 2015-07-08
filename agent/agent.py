@@ -224,7 +224,10 @@ class Agent(MessagingHandler):
         if self.state == STATE_CLIENT:
 
             message_to_send = "Hello World"
-            message_count = self.sender.credit
+            if self.sender:
+                message_count = self.sender.credit
+            else:
+                message_count = 0
             if self.messages_to_send < message_count:
                 message_count = self.messages_to_send
 
