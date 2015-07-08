@@ -38,7 +38,7 @@
                                 <li><label class="fixed">Total Requests</label> {{ server.total_requests_received }}</li>
                             </ul>
                             <span class="serverActions">
-                                <button class="undeployAgent" id="command_address" type="button">Undeploy</button>
+                                <button class="undeployAgent" ng-click="undeploy(client.command_address)" type="button">Undeploy</button>
                             </span>
                         </div>
                     </div>
@@ -55,9 +55,10 @@
                                 <li><label class="fixed">Desired Throughput</label> {{ client.desired_throughput }}  </li>
                                 <li><label class="fixed">Actual Throughput</label> {{ client.actual_throughput }} </li>
                                 <li><label class="fixed">Messages Sent</label> {{ client.sent }} </li>
+                                <li><label class="fixed">Messages Acked</label> {{ client.acknowledged }} </li>
                             </ul>
                             <span class="clientActions">
-                                <button class="undeployAgent" id="some_command_address" ng-click="undeploy()" type="button">Undeploy</button>
+                                <button class="undeployAgent" ng-click="undeploy(client.command_address)">Undeploy</button>
                             </span>
                         </div>
                     </div>
