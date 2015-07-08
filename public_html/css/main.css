@@ -44,7 +44,7 @@
 .clientDetails {
     width: 550px;
     height: 165px;
-    background-color: steelblue;
+    background-color: #bbb;
     overflow: auto;
     margin: 5px;
 }
