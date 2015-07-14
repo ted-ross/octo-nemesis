@@ -143,6 +143,7 @@ class Agent(MessagingHandler):
                 self.desired_throughput = int(throughput)
             # Open sender to name
             self.sender = self.container.create_sender(self.connection, self.service_name)
+            self.senders[self.service_name] = self.sender
         elif self.state == STATE_SERVER and deploy_type == DEPLOY_TYPE_UNDEPLOY:
             # Change the state of this agent to FREE
             self.state = STATE_SERVER_CLOSING
@@ -162,7 +163,7 @@ class Agent(MessagingHandler):
         self.backlog = actual_backlog + len(self.work_queue)
 
     def send(self, to_address, body, correlation_id=None):
-        sender = self.relay_sender or self.senders.get(to_address)
+        sender = self.senders.get(to_address) or self.relay_sender
 
         if not sender:
             sender = self.container.create_sender(self.connection, to_address)
@@ -181,15 +182,13 @@ class Agent(MessagingHandler):
     def on_connection_closed(self, event):
         pass
 
-    def on_session_closed(self, event):
-        print 'Hello'
-
     def on_link_closed(self, event):
         if event.receiver and event.receiver == self.receiver and self.state == STATE_SERVER_CLOSING:
             self.clear_stats()
 
     def on_accepted(self, event):
-        self.acknowledged += 1
+        if event.sender == self.sender:
+            self.acknowledged += 1
 
     def on_start(self, event):
         self.connection = event.container.connect(self.url)
@@ -256,7 +255,6 @@ class Agent(MessagingHandler):
     def on_timer_task(self, event):
         if self.relay_sender and self.period == 9:
             self.calculate_backlog()
-            print 'Sending broadcast to %s ' % AGENT_BROADCAST_ADDRESS
             self.send(AGENT_BROADCAST_ADDRESS, self.get_stats())
             self.period = 0
         else:
