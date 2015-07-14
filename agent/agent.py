@@ -114,6 +114,7 @@ class Agent(MessagingHandler):
 
         current_stats['outstanding_requests'] = self.sent - self.acknowledged
         current_stats['actual_throughput'] = self.calculate_actual_throughput()
+        current_stats['acknowledged'] = self.acknowledged
 
         return current_stats
 
@@ -255,6 +256,7 @@ class Agent(MessagingHandler):
     def on_timer_task(self, event):
         if self.relay_sender and self.period == 9:
             self.calculate_backlog()
+            print 'Sending broadcast to %s ' % AGENT_BROADCAST_ADDRESS
             self.send(AGENT_BROADCAST_ADDRESS, self.get_stats())
             self.period = 0
         else:
